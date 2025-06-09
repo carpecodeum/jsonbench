@@ -1,2 +1,20 @@
 *.bak
 .idea
+*.bin
+*.txt
+*.count
+*.log
+*.idx
+*.idx2
+*.data_size
+*.results_runtime
+*.tsv
+*.jsonl
+
+# ClickHouse mark files
+*.mrk
+*.mrk2
+*.mrk3
+*.cmrk2
+*.cmrk3
+*.cidx
