@@ -3,178 +3,131 @@
 Load Bluesky data into true ClickHouse Variant columns for benchmarking.
 """
 
-import json
 import gzip
+import json
 import sys
 from datetime import datetime
+import subprocess
 
-def create_true_variant_schema():
-    """Create a proper true Variant schema for Bluesky data."""
-    schema = """
--- True ClickHouse Variant columns for Bluesky data
-DROP TABLE IF EXISTS bluesky_true_variants.bluesky_data;
-
-CREATE TABLE bluesky_true_variants.bluesky_data
-(
-    -- Basic identifier fields (not variants)
-    did String,
-    time_us UInt64,
-    kind LowCardinality(String),
-    timestamp_col DateTime64(6),
-    
-    -- TRUE Variant columns - same field can store different types
-    commit_operation Variant(String),  -- Usually string but could be NULL
-    commit_collection Variant(String), -- Usually string but could be NULL
-    record_data Variant(String, JSON), -- Could be text or complex JSON
-    
-    -- Additional metadata as variants
-    commit_info Variant(JSON),          -- Full commit object
-    
-    -- Original JSON for comparison
-    original_json JSON
-)
-ENGINE = MergeTree
-ORDER BY (kind, did, timestamp_col)
-SETTINGS 
-    allow_experimental_variant_type = 1,
-    use_variant_as_common_type = 1;
-"""
-    return schema
-
-def load_sample_data(input_file: str, max_records: int = 10000):
-    """Load sample data into true Variant columns."""
-    
-    print(f"Loading {max_records} records into true Variant columns...")
-    
-    open_func = gzip.open if input_file.endswith('.gz') else open
-    mode = 'rt' if input_file.endswith('.gz') else 'r'
-    
-    # Prepare batch insert
-    values = []
-    processed = 0
-    
-    with open_func(input_file, mode) as f:
-        for line_num, line in enumerate(f):
-            if processed >= max_records:
-                break
-                
-            try:
-                record = json.loads(line.strip())
-                
-                # Extract basic fields
-                did = record.get('did', '').replace("'", "''")
-                time_us = record.get('time_us', 0)
-                kind = record.get('kind', '').replace("'", "''")
-                
-                # Convert timestamp
-                try:
-                    timestamp_col = datetime.fromtimestamp(time_us / 1_000_000).strftime('%Y-%m-%d %H:%M:%S.%f')
-                except:
-                    timestamp_col = '1970-01-01 00:00:00.000000'
-                
-                # Variant fields - these can be different types
-                commit_operation = record.get('commit', {}).get('operation', '') if record.get('commit') else ''
-                commit_collection = record.get('commit', {}).get('collection', '') if record.get('commit') else ''
-                
-                # Record data as variant - sometimes simple text, sometimes complex JSON
-                record_obj = record.get('record', {})
-                if record_obj:
-                    if '$type' in record_obj and record_obj['$type'] == 'app.bsky.feed.post':
-                        # Simple text for posts
-                        record_data = record_obj.get('text', '')[:100]  # Truncate for demo
-                    else:
-                        # Complex JSON for other types
-                        record_data = json.dumps(record_obj)
-                else:
-                    record_data = ''
-                
-                # Commit info as JSON variant
-                commit_info = json.dumps(record.get('commit', {})) if record.get('commit') else '{}'
-                
-                # Original JSON
-                original_json = json.dumps(record)
-                
-                # Build row values
-                row_values = [
-                    f"'{did}'",
-                    str(time_us),
-                    f"'{kind}'",
-                    f"'{timestamp_col}'",
-                    f"'{commit_operation.replace(chr(39), chr(39)+chr(39))}'" if commit_operation else 'NULL',
-                    f"'{commit_collection.replace(chr(39), chr(39)+chr(39))}'" if commit_collection else 'NULL',
-                    f"'{record_data.replace(chr(39), chr(39)+chr(39))}'" if record_data else 'NULL',
-                    f"'{commit_info.replace(chr(39), chr(39)+chr(39))}'",
-                    f"'{original_json.replace(chr(39), chr(39)+chr(39))}'"
-                ]
-                
-                values.append(f"({', '.join(row_values)})")
-                processed += 1
-                
-                # Insert in batches of 1000
-                if len(values) >= 1000:
-                    insert_batch(values)
-                    values = []
-                    print(f"Loaded {processed} records...")
-                
-            except Exception as e:
-                print(f"Error processing line {line_num + 1}: {e}")
-                continue
-    
-    # Insert remaining values
-    if values:
-        insert_batch(values)
-    
-    print(f"Successfully loaded {processed} records into true Variant columns")
-    return processed
-
-def insert_batch(values):
-    """Insert a batch of values."""
-    import subprocess
-    
-    query = f"""
-    INSERT INTO bluesky_true_variants.bluesky_data VALUES 
-    {', '.join(values)}
-    """
-    
-    # Write to temp file and execute
-    with open('/tmp/batch_insert.sql', 'w') as f:
-        f.write(query)
-    
-    result = subprocess.run(
-        ['clickhouse', 'client', '--queries-file', '/tmp/batch_insert.sql'],
-        capture_output=True,
-        text=True
-    )
-    
-    if result.returncode != 0:
-        print(f"Insert error: {result.stderr}")
+def extract_fields(record):
+    """Extract and convert fields for True Variants storage"""
+    try:
+        # Basic fields
+        did = record.get('did', '')
+        time_us = record.get('time_us', 0)
+        kind = record.get('kind', '')
+        
+        # Convert timestamp
+        timestamp_col = None
+        if time_us and time_us > 0:
+            timestamp_col = datetime.fromtimestamp(time_us / 1_000_000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        
+        # Commit fields
+        commit = record.get('commit', {})
+        commit_rev = commit.get('rev', '') if commit else ''
+        commit_operation = commit.get('operation', '') if commit else ''
+        commit_collection = commit.get('collection', '') if commit else ''
+        commit_rkey = commit.get('rkey', '') if commit else ''
+        commit_cid = commit.get('cid', '') if commit else ''
+        
+        # Record type
+        record_data = commit.get('record', {}) if commit else {}
+        record_type = record_data.get('$type', '') if record_data else ''
+        
+        return {
+            'did': did,
+            'time_us': time_us,
+            'kind': kind,
+            'timestamp_col': timestamp_col,
+            'commit_rev': commit_rev,
+            'commit_operation': commit_operation,
+            'commit_collection': commit_collection,
+            'commit_rkey': commit_rkey,
+            'commit_cid': commit_cid,
+            'record_type': record_type
+        }
+    except Exception as e:
+        print(f"Error extracting fields: {e}", file=sys.stderr)
+        return None
 
 def main():
-    import subprocess
+    input_file = sys.argv[1] if len(sys.argv) > 1 else '/Users/adityabhatnagar/data/bluesky/file_0001.json.gz'
     
-    # Create schema
-    schema = create_true_variant_schema()
-    with open('/tmp/create_variants.sql', 'w') as f:
-        f.write(schema)
+    print("Loading True Variants table (Variant columns, no JSON)...")
     
-    print("Creating true Variant columns schema...")
-    result = subprocess.run(
-        ['clickhouse', 'client', '--queries-file', '/tmp/create_variants.sql'],
-        capture_output=True,
-        text=True
-    )
+    # Create database and table
+    subprocess.run(['clickhouse', 'client', '--queries-file', 'create_true_variants.sql'], check=True)
     
-    if result.returncode != 0:
-        print(f"Schema creation error: {result.stderr}")
+    batch_size = 100
+    batch = []
+    total_processed = 0
+    
+    with gzip.open(input_file, 'rt', encoding='utf-8') as f:
+        for line_num, line in enumerate(f, 1):
+            try:
+                record = json.loads(line.strip())
+                fields = extract_fields(record)
+                
+                if fields:
+                    batch.append(fields)
+                    
+                    if len(batch) >= batch_size:
+                        insert_batch(batch)
+                        total_processed += len(batch)
+                        print(f"Processed {total_processed} records...")
+                        batch = []
+                        
+                        # Stop at 1M records for consistency
+                        if total_processed >= 1_000_000:
+                            break
+                            
+            except json.JSONDecodeError as e:
+                print(f"JSON decode error at line {line_num}: {e}", file=sys.stderr)
+                continue
+            except Exception as e:
+                print(f"Error at line {line_num}: {e}", file=sys.stderr)
+                continue
+    
+    # Insert remaining batch
+    if batch:
+        insert_batch(batch)
+        total_processed += len(batch)
+    
+    print(f"Total records loaded: {total_processed}")
+
+def insert_batch(batch):
+    """Insert a batch of records using INSERT VALUES"""
+    if not batch:
         return
     
-    print("Schema created successfully!")
+    # Build VALUES clause
+    values = []
+    for record in batch:
+        # Format values, handling None/null values
+        did = f"'{record['did']}'" if record['did'] else 'NULL'
+        time_us = str(record['time_us']) if record['time_us'] else 'NULL'
+        kind = f"'{record['kind']}'" if record['kind'] else 'NULL'
+        timestamp_col = f"'{record['timestamp_col']}'" if record['timestamp_col'] else 'NULL'
+        commit_rev = f"'{record['commit_rev']}'" if record['commit_rev'] else 'NULL'
+        commit_operation = f"'{record['commit_operation']}'" if record['commit_operation'] else 'NULL'
+        commit_collection = f"'{record['commit_collection']}'" if record['commit_collection'] else 'NULL'
+        commit_rkey = f"'{record['commit_rkey']}'" if record['commit_rkey'] else 'NULL'
+        commit_cid = f"'{record['commit_cid']}'" if record['commit_cid'] else 'NULL'
+        record_type = f"'{record['record_type']}'" if record['record_type'] else 'NULL'
+        
+        values.append(f"({did}, {time_us}, {kind}, {timestamp_col}, {commit_rev}, {commit_operation}, {commit_collection}, {commit_rkey}, {commit_cid}, {record_type})")
     
-    # Load data
-    input_file = sys.argv[1] if len(sys.argv) > 1 else "~/data/bluesky/file_0001.json.gz"
-    max_records = int(sys.argv[2]) if len(sys.argv) > 2 else 10000
+    query = f"""
+    INSERT INTO bluesky_true_variants.bluesky_data 
+    (did, time_us, kind, timestamp_col, commit_rev, commit_operation, commit_collection, commit_rkey, commit_cid, record_type)
+    VALUES {', '.join(values)}
+    """
     
-    load_sample_data(input_file, max_records)
+    try:
+        subprocess.run(['clickhouse', 'client', '--query', query], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Insert error: {e}", file=sys.stderr)
+        raise
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main() 

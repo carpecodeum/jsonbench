@@ -53,4 +53,44 @@ WHERE kind = 'commit'
   AND variantElement(commit_collection, 'String') = 'app.bsky.feed.post'
 GROUP BY user_id 
 ORDER BY activity_span DESC 
-LIMIT 3; 
+LIMIT 3;
+
+-- True Variants queries - using Variant columns without JSON storage
+-- Query 1: Count by kind
+SELECT variantElement(kind, 'String') as kind_val, count() 
+FROM bluesky_true_variants.bluesky_data 
+WHERE variantElement(kind, 'String') IS NOT NULL
+GROUP BY kind_val 
+ORDER BY count() DESC;
+
+-- Query 2: Count by collection 
+SELECT variantElement(commit_collection, 'String') as collection, count() 
+FROM bluesky_true_variants.bluesky_data 
+WHERE variantElement(commit_collection, 'String') != '' AND variantElement(commit_collection, 'String') IS NOT NULL
+GROUP BY collection 
+ORDER BY count() DESC 
+LIMIT 10;
+
+-- Query 3: Filter by kind (commit)
+SELECT count() 
+FROM bluesky_true_variants.bluesky_data 
+WHERE variantElement(kind, 'String') = 'commit';
+
+-- Query 4: Time range filter
+SELECT count() 
+FROM bluesky_true_variants.bluesky_data 
+WHERE variantElement(time_us, 'UInt64') > 1700000000000000;
+
+-- Query 5: Group by operation and collection
+SELECT 
+    variantElement(commit_operation, 'String') as op, 
+    variantElement(commit_collection, 'String') as coll, 
+    count() 
+FROM bluesky_true_variants.bluesky_data 
+WHERE variantElement(commit_operation, 'String') != '' 
+  AND variantElement(commit_operation, 'String') IS NOT NULL
+  AND variantElement(commit_collection, 'String') != '' 
+  AND variantElement(commit_collection, 'String') IS NOT NULL
+GROUP BY op, coll 
+ORDER BY count() DESC 
+LIMIT 5; 

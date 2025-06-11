@@ -1,0 +1,93 @@
+{
+  "json_baseline": {
+    "config": {
+      "database": "bluesky_1m",
+      "table": "bluesky",
+      "description": "JSON Object (baseline)",
+      "queries_file": "queries_json_baseline.sql"
+    },
+    "queries": {}
+  },
+  "typed_columns": {
+    "config": {
+      "database": "bluesky_variants_test",
+      "table": "bluesky_preprocessed",
+      "description": "Typed Columns + JSON fallback",
+      "queries_file": "queries_preprocessed_variants.sql"
+    },
+    "queries": {}
+  },
+  "pure_variants": {
+    "config": {
+      "database": "bluesky_variants_test",
+      "table": "bluesky_pure_variants",
+      "description": "Pure Typed Columns (no JSON)",
+      "queries_file": "queries_pure_variants.sql"
+    },
+    "queries": {}
+  },
+  "true_variants": {
+    "config": {
+      "database": "bluesky_true_variants",
+      "table": "bluesky_data",
+      "description": "ClickHouse Variant type",
+      "queries_file": "queries_true_variants.sql"
+    },
+    "queries": {}
+  },
+  "minimal_variant": {
+    "config": {
+      "database": "bluesky_minimal_1m",
+      "table": "bluesky_data",
+      "description": "Minimal Variant (1 column)",
+      "queries_file": "queries_minimal_variant.sql"
+    },
+    "queries": {
+      "Q1": {
+        "mean": 0.1053699254989624,
+        "median": 0.10456812381744385,
+        "min": 0.10247015953063965,
+        "max": 0.11150121688842773,
+        "std": 0.002942814581252462,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q2": {
+        "mean": 0.09268069267272949,
+        "median": 0.09167242050170898,
+        "min": 0.08903217315673828,
+        "max": 0.10550665855407715,
+        "std": 0.004986529056174077,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q3": {
+        "mean": 0.09206452369689941,
+        "median": 0.09065091609954834,
+        "min": 0.08774495124816895,
+        "max": 0.10283303260803223,
+        "std": 0.004472610705364864,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q4": {
+        "mean": 0.09509472846984864,
+        "median": 0.09303653240203857,
+        "min": 0.08844494819641113,
+        "max": 0.11684584617614746,
+        "std": 0.007977928720907567,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q5": {
+        "mean": 0.10515074729919434,
+        "median": 0.10436463356018066,
+        "min": 0.10216999053955078,
+        "max": 0.10979008674621582,
+        "std": 0.0026356356588610155,
+        "errors": 0,
+        "successful_runs": 10
+      }
+    }
+  }
+}

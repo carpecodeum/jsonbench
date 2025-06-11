@@ -1,0 +1,6 @@
+Approach,Query,Time_Seconds,Result
+Minimal_Variant,Count by kind,0.1046,	1000000
+Minimal_Variant,Count by collection,0.0955,
+Minimal_Variant,Filter by kind,0.0893,0
+Minimal_Variant,Time range filter,0.0891,0
+Minimal_Variant,Complex grouping,0.1033,
