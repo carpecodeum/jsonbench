@@ -1,0 +1,112 @@
+{
+  "json_baseline": {
+    "config": {
+      "database": "bluesky_1m",
+      "table": "bluesky",
+      "description": "JSON Object (baseline)",
+      "queries_file": "queries_json_baseline.sql"
+    },
+    "queries": {
+      "Q1": {
+        "mean": 0.11633024215698243,
+        "median": 0.11658155918121338,
+        "min": 0.11242008209228516,
+        "max": 0.12111115455627441,
+        "std": 0.0028772349542523236,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q2": {
+        "mean": 0.12357618808746337,
+        "median": 0.12348604202270508,
+        "min": 0.12055802345275879,
+        "max": 0.1283860206604004,
+        "std": 0.002236818358644843,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q3": {
+        "mean": 0.09513804912567139,
+        "median": 0.09277546405792236,
+        "min": 0.09199118614196777,
+        "max": 0.11390924453735352,
+        "std": 0.006667346209853563,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q4": {
+        "mean": 0.09148180484771729,
+        "median": 0.0913170576095581,
+        "min": 0.0888679027557373,
+        "max": 0.09561491012573242,
+        "std": 0.002254959644782348,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q5": {
+        "mean": 0.1501706838607788,
+        "median": 0.15004801750183105,
+        "min": 0.1472320556640625,
+        "max": 0.15431785583496094,
+        "std": 0.002235625538641209,
+        "errors": 0,
+        "successful_runs": 10
+      }
+    }
+  },
+  "typed_columns": {
+    "config": {
+      "database": "bluesky_variants_test",
+      "table": "bluesky_preprocessed",
+      "description": "Typed Columns + JSON fallback",
+      "queries_file": "queries_preprocessed_variants.sql"
+    },
+    "queries": {}
+  },
+  "pure_variants": {
+    "config": {
+      "database": "bluesky_variants_test",
+      "table": "bluesky_pure_variants",
+      "description": "Pure Typed Columns (no JSON)",
+      "queries_file": "queries_pure_variants.sql"
+    },
+    "queries": {}
+  },
+  "true_variants": {
+    "config": {
+      "database": "bluesky_true_variants",
+      "table": "bluesky_data",
+      "description": "ClickHouse Variant type",
+      "queries_file": "queries_true_variants.sql"
+    },
+    "queries": {}
+  },
+  "minimal_variant": {
+    "config": {
+      "database": "bluesky_minimal_1m",
+      "table": "bluesky_data",
+      "description": "Minimal Variant (1 column)",
+      "queries_file": "queries_minimal_variant.sql"
+    },
+    "queries": {
+      "Q1": {
+        "mean": 2.4431601762771606,
+        "median": 2.358007073402405,
+        "min": 2.225715160369873,
+        "max": 3.0067288875579834,
+        "std": 0.22625137254510114,
+        "errors": 0,
+        "successful_runs": 10
+      },
+      "Q2": {
+        "mean": 2.540980021158854,
+        "median": 2.5493459701538086,
+        "min": 2.3923280239105225,
+        "max": 2.6812660694122314,
+        "std": 0.14465058023224983,
+        "errors": 7,
+        "successful_runs": 3
+      }
+    }
+  }
+}

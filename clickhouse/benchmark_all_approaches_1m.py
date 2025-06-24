@@ -18,7 +18,13 @@ class ComprehensiveBenchmark:
                 'database': 'bluesky_1m',
                 'table': 'bluesky',
                 'description': 'JSON Object (baseline)',
-                'queries_file': 'queries_json_baseline.sql'
+                'queries_file': None  # Will create custom queries
+            },
+            'variant_direct': {
+                'database': 'bluesky_minimal_1m',
+                'table': 'bluesky_data',
+                'description': 'Variant Direct JSON Access ⭐',
+                'queries_file': None  # Will create custom queries
             },
             'typed_columns': {
                 'database': 'bluesky_variants_test',
@@ -41,7 +47,7 @@ class ComprehensiveBenchmark:
             'minimal_variant': {
                 'database': 'bluesky_minimal_1m',
                 'table': 'bluesky_data',
-                'description': 'Minimal Variant (1 column)',
+                'description': 'Minimal Variant (JSONExtract)',
                 'queries_file': None  # Will create custom queries
             }
         }
@@ -131,18 +137,99 @@ class ComprehensiveBenchmark:
             if exec_time < 0:
                 print(f"Schema creation error: {result}")
 
+    def verify_data_integrity(self, database, table, approach_name):
+        """Verify that data is properly loaded and contains actual JSON content."""
+        print(f"   Verifying {approach_name} data integrity...")
+        
+        # Check record count
+        count_query = f"SELECT count() FROM {database}.{table}"
+        exec_time, result = self.run_clickhouse_query(count_query)
+        if exec_time <= 0:
+            print(f"   ✗ Cannot count records: {result}")
+            return False
+        
+        count = int(result)
+        if count == 0:
+            print(f"   ✗ No records found")
+            return False
+        
+        # Check data content based on approach
+        if approach_name == 'json_baseline':
+            # Check if we can extract actual data fields
+            sample_query = f"SELECT toString(data.did), toString(data.kind), toString(data.time_us) FROM {database}.{table} LIMIT 3"
+            exec_time, result = self.run_clickhouse_query(sample_query)
+            if exec_time <= 0:
+                print(f"   ✗ Cannot extract JSON fields: {result}")
+                return False
+            
+            lines = result.strip().split('\n')
+            if len(lines) < 3:
+                print(f"   ✗ Insufficient sample data")
+                return False
+            
+            # Check if first record has actual data (not empty)
+            first_record = lines[0].split('\t')
+            if len(first_record) >= 3 and first_record[0] and first_record[1] and first_record[2]:
+                print(f"   ✓ JSON data verified: {first_record[0][:20]}..., {first_record[1]}, {first_record[2]}")
+                return True
+            else:
+                print(f"   ✗ JSON data appears empty or malformed")
+                return False
+                
+        elif approach_name == 'minimal_variant':
+            # Check if we can extract actual data fields from variant
+            sample_query = f"SELECT JSONExtractString(toString(variantElement(data, 'JSON')), 'did') as did, JSONExtractString(toString(variantElement(data, 'JSON')), 'kind') as kind FROM {database}.{table} LIMIT 3"
+            exec_time, result = self.run_clickhouse_query(sample_query)
+            if exec_time <= 0:
+                print(f"   ✗ Cannot extract variant fields: {result}")
+                return False
+            
+            lines = result.strip().split('\n')
+            if len(lines) < 3:
+                print(f"   ✗ Insufficient sample data")
+                return False
+            
+            # Check if first record has actual data
+            first_record = lines[0].split('\t')
+            if len(first_record) >= 2 and first_record[0] and first_record[1]:
+                print(f"   ✓ Variant data verified: {first_record[0][:20]}..., {first_record[1]}")
+                return True
+            else:
+                print(f"   ✗ Variant data appears empty or malformed")
+                return False
+        
+        # For other approaches, just check count
+        print(f"   ✓ {count:,} records found")
+        return True
+
     def load_all_data(self):
-        """Load 1M records into all table approaches."""
+        """Load 1M records into all table approaches with proper data verification."""
         print("=" * 60)
         print("LOADING 1M RECORDS INTO ALL APPROACHES")
         print("=" * 60)
         
-        # 1. Load JSON baseline
+        # Clear existing data first
+        print("0. Clearing existing tables...")
+        clear_queries = [
+            "DROP TABLE IF EXISTS bluesky_1m.bluesky",
+            "DROP TABLE IF EXISTS bluesky_minimal_1m.bluesky_data"
+        ]
+        for query in clear_queries:
+            self.run_clickhouse_query(query)
+        
+        # Recreate schemas
+        self.create_schemas()
+        
+        # 1. Load JSON baseline with correct format
         print("1. Loading JSON baseline (1M records)...")
-        json_load_cmd = f"head -1000000 bluesky_1m_baseline.jsonl | clickhouse client --query 'INSERT INTO bluesky_1m.bluesky FORMAT JSONEachRow'"
+        # Use the corrected loading method that wraps JSON in data field
+        json_load_cmd = "cat bluesky_1m_baseline.jsonl | head -1000000 | sed 's/^/{\"data\":/' | sed 's/$/}/' | clickhouse client --query 'INSERT INTO bluesky_1m.bluesky FORMAT JSONEachRow'"
         result = subprocess.run(json_load_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
-            print("   ✓ JSON baseline loaded")
+            if self.verify_data_integrity('bluesky_1m', 'bluesky', 'json_baseline'):
+                print("   ✓ JSON baseline loaded and verified")
+            else:
+                print("   ✗ JSON baseline loaded but data verification failed")
         else:
             print(f"   ✗ JSON baseline failed: {result.stderr}")
         
@@ -180,38 +267,66 @@ class ComprehensiveBenchmark:
         print("4. Loading true variants...")
         subprocess.run(['python3', 'load_true_variants_fixed.py', 'all', '--source-db', 'bluesky_1m', '--use-client'])
         
-        # 5. Load minimal variant
-        print("5. Loading minimal variant...")
-        minimal_query = """
-        INSERT INTO bluesky_minimal_1m.bluesky_data
-        SELECT CAST(data AS Variant(JSON)) as data
-        FROM bluesky_1m.bluesky
-        """
-        exec_time, result = self.run_clickhouse_query(minimal_query)
-        if exec_time > 0:
-            print("   ✓ Minimal variant loaded")
+        # 5. Load minimal variant with correct format  
+        print("5. Loading minimal variant (1M records)...")
+        # Use the corrected loading method that wraps JSON in data field
+        minimal_load_cmd = "cat bluesky_1m_baseline.jsonl | head -1000000 | sed 's/^/{\"data\":/' | sed 's/$/}/' | clickhouse client --query 'INSERT INTO bluesky_minimal_1m.bluesky_data FORMAT JSONEachRow'"
+        result = subprocess.run(minimal_load_cmd, shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            if self.verify_data_integrity('bluesky_minimal_1m', 'bluesky_data', 'minimal_variant'):
+                print("   ✓ Minimal variant loaded and verified")
+            else:
+                print("   ✗ Minimal variant loaded but data verification failed")
         else:
-            print(f"   ✗ Minimal variant failed: {result}")
+            print(f"   ✗ Minimal variant failed: {result.stderr}")
         
         print("\nData loading completed!")
 
-    def create_minimal_variant_queries(self):
-        """Create query file for minimal variant approach."""
+    def create_json_baseline_queries(self):
+        """Create query file for JSON baseline approach."""
         queries = [
             # Q1: Count by kind
-            "SELECT JSONExtractString(toString(variantElement(data, 'JSON')), 'kind') as kind, count() FROM bluesky_minimal_1m.bluesky_data GROUP BY kind ORDER BY count() DESC",
+            "SELECT toString(data.kind) as kind, count() FROM bluesky_1m.bluesky GROUP BY toString(data.kind) ORDER BY count() DESC",
             
             # Q2: Count by collection 
-            "SELECT JSONExtractString(toString(variantElement(data, 'JSON')), 'commit', 'collection') as collection, count() FROM bluesky_minimal_1m.bluesky_data WHERE collection != '' GROUP BY collection ORDER BY count() DESC LIMIT 10",
+            "SELECT toString(data.commit.collection) as collection, count() FROM bluesky_1m.bluesky WHERE toString(data.commit.collection) != '' GROUP BY toString(data.commit.collection) ORDER BY count() DESC LIMIT 10",
             
             # Q3: Filter by kind
-            "SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE JSONExtractString(toString(variantElement(data, 'JSON')), 'kind') = 'commit'",
+            "SELECT count() FROM bluesky_1m.bluesky WHERE toString(data.kind) = 'commit'",
             
             # Q4: Time range query
-            "SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE JSONExtractUInt(toString(variantElement(data, 'JSON')), 'time_us') > 1700000000000000",
+            "SELECT count() FROM bluesky_1m.bluesky WHERE toUInt64(data.time_us) > 1700000000000000",
             
             # Q5: Complex aggregation
-            "SELECT JSONExtractString(toString(variantElement(data, 'JSON')), 'commit', 'operation') as op, JSONExtractString(toString(variantElement(data, 'JSON')), 'commit', 'collection') as coll, count() FROM bluesky_minimal_1m.bluesky_data WHERE op != '' AND coll != '' GROUP BY op, coll ORDER BY count() DESC LIMIT 5"
+            "SELECT toString(data.commit.operation) as op, toString(data.commit.collection) as coll, count() FROM bluesky_1m.bluesky WHERE toString(data.commit.operation) != '' AND toString(data.commit.collection) != '' GROUP BY toString(data.commit.operation), toString(data.commit.collection) ORDER BY count() DESC LIMIT 5"
+        ]
+        
+        with open('queries_json_baseline.sql', 'w') as f:
+            for query in queries:
+                f.write(query + ';\n')
+        
+        return 'queries_json_baseline.sql'
+
+    def create_minimal_variant_queries(self):
+        """Create query file for minimal variant approach using optimized subcolumn syntax."""
+        # Base settings for memory optimization
+        settings = "SETTINGS max_threads = 1, max_memory_usage = 4000000000"
+        
+        queries = [
+            # Q1: Count by kind - using subcolumn syntax
+            f"SELECT JSONExtractString(toString(data.JSON), 'kind') as kind, count() FROM bluesky_minimal_1m.bluesky_data GROUP BY kind ORDER BY count() DESC {settings}",
+            
+            # Q2: Count by collection - using subcolumn syntax
+            f"SELECT JSONExtractString(toString(data.JSON), 'commit', 'collection') as collection, count() FROM bluesky_minimal_1m.bluesky_data WHERE collection != '' GROUP BY collection ORDER BY count() DESC LIMIT 10 {settings}",
+            
+            # Q3: Filter by kind - using subcolumn syntax
+            f"SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE JSONExtractString(toString(data.JSON), 'kind') = 'commit' {settings}",
+            
+            # Q4: Time range query - using subcolumn syntax
+            f"SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE JSONExtractUInt(toString(data.JSON), 'time_us') > 1700000000000000 {settings}",
+            
+            # Q5: Complex aggregation - using subcolumn syntax
+            f"SELECT JSONExtractString(toString(data.JSON), 'commit', 'operation') as op, JSONExtractString(toString(data.JSON), 'commit', 'collection') as coll, count() FROM bluesky_minimal_1m.bluesky_data WHERE op != '' AND coll != '' GROUP BY op, coll ORDER BY count() DESC LIMIT 5 {settings}"
         ]
         
         with open('queries_minimal_variant.sql', 'w') as f:
@@ -219,6 +334,31 @@ class ComprehensiveBenchmark:
                 f.write(query + ';\n')
         
         return 'queries_minimal_variant.sql'
+
+    def create_variant_direct_queries(self):
+        """Create query file for variant direct JSON access approach."""
+        queries = [
+            # Q1: Count by kind - using direct JSON field access
+            "SELECT toString(data.JSON.kind) as kind, count() FROM bluesky_minimal_1m.bluesky_data GROUP BY kind ORDER BY count() DESC",
+            
+            # Q2: Count by collection - using direct JSON field access  
+            "SELECT toString(data.JSON.commit.collection) as collection, count() FROM bluesky_minimal_1m.bluesky_data WHERE collection != '' GROUP BY collection ORDER BY count() DESC LIMIT 10",
+            
+            # Q3: Filter by kind - using direct JSON field access
+            "SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE toString(data.JSON.kind) = 'commit'",
+            
+            # Q4: Time range query - using direct JSON field access
+            "SELECT count() FROM bluesky_minimal_1m.bluesky_data WHERE toUInt64(data.JSON.time_us) > 1700000000000000",
+            
+            # Q5: Complex aggregation - using direct JSON field access
+            "SELECT toString(data.JSON.commit.operation) as op, toString(data.JSON.commit.collection) as coll, count() FROM bluesky_minimal_1m.bluesky_data WHERE op != '' AND coll != '' GROUP BY op, coll ORDER BY count() DESC LIMIT 5"
+        ]
+        
+        with open('queries_variant_direct.sql', 'w') as f:
+            for query in queries:
+                f.write(query + ';\n')
+        
+        return 'queries_variant_direct.sql'
 
     def load_queries_from_file(self, filename):
         """Load queries from SQL file."""
@@ -265,8 +405,10 @@ class ComprehensiveBenchmark:
         print(f"RUNNING BENCHMARKS ({self.iterations} iterations per query)")
         print("=" * 60)
         
-        # Create minimal variant queries
+        # Create query files for approaches that need them
+        self.approaches['json_baseline']['queries_file'] = self.create_json_baseline_queries()
         self.approaches['minimal_variant']['queries_file'] = self.create_minimal_variant_queries()
+        self.approaches['variant_direct']['queries_file'] = self.create_variant_direct_queries()
         
         for approach_name, config in self.approaches.items():
             print(f"\n=== {config['description']} ===")

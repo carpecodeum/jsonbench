@@ -1,0 +1,112 @@
+{
+  "json_baseline": {
+    "config": {
+      "database": "bluesky_100m",
+      "table": "bluesky",
+      "description": "JSON Object (baseline)",
+      "queries_file": "queries_json_baseline_100m.sql"
+    },
+    "queries": {
+      "Q1": {
+        "mean": 1.7254720211029053,
+        "median": 1.656987190246582,
+        "min": 1.592221736907959,
+        "max": 1.9240610599517822,
+        "std": 0.13392394737705424,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q2": {
+        "mean": 2.3807195663452148,
+        "median": 2.3641180992126465,
+        "min": 2.169184923171997,
+        "max": 2.687814950942993,
+        "std": 0.22080107325518505,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q3": {
+        "mean": 0.39749698638916015,
+        "median": 0.38484692573547363,
+        "min": 0.38120007514953613,
+        "max": 0.449321985244751,
+        "std": 0.029227252284375543,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q4": {
+        "mean": 0.29048309326171873,
+        "median": 0.2678399085998535,
+        "min": 0.25537586212158203,
+        "max": 0.39012789726257324,
+        "std": 0.056030455055912254,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q5": {
+        "mean": 4.839620113372803,
+        "median": 4.779452800750732,
+        "min": 4.4685218334198,
+        "max": 5.2568089962005615,
+        "std": 0.3767763301506046,
+        "errors": 0,
+        "successful_runs": 5
+      }
+    }
+  },
+  "variant_direct": {
+    "config": {
+      "database": "bluesky_100m_variant",
+      "table": "bluesky_data",
+      "description": "Variant Direct JSON Access \u2b50",
+      "queries_file": "queries_variant_direct_100m.sql"
+    },
+    "queries": {
+      "Q1": {
+        "mean": 1.829299020767212,
+        "median": 1.832090139389038,
+        "min": 1.7380731105804443,
+        "max": 1.9156010150909424,
+        "std": 0.08156230686242921,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q2": {
+        "mean": 2.4319038867950438,
+        "median": 2.387239933013916,
+        "min": 2.292881965637207,
+        "max": 2.6394567489624023,
+        "std": 0.13303338767014533,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q3": {
+        "mean": 0.4849984645843506,
+        "median": 0.47660017013549805,
+        "min": 0.46830105781555176,
+        "max": 0.5163872241973877,
+        "std": 0.019436230751563907,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q4": {
+        "mean": 0.3378589630126953,
+        "median": 0.33316922187805176,
+        "min": 0.29764890670776367,
+        "max": 0.40103888511657715,
+        "std": 0.039698717511900024,
+        "errors": 0,
+        "successful_runs": 5
+      },
+      "Q5": {
+        "mean": 5.275428724288941,
+        "median": 5.234151840209961,
+        "min": 4.86630392074585,
+        "max": 5.8505940437316895,
+        "std": 0.40319343589270606,
+        "errors": 0,
+        "successful_runs": 5
+      }
+    }
+  }
+}

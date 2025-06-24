@@ -53,7 +53,7 @@ WHERE kind = 'commit'
   AND variantElement(commit_collection, 'String') = 'app.bsky.feed.post'
 GROUP BY user_id 
 ORDER BY activity_span DESC 
-LIMIT 3;
+LIMIT 3; 
 
 -- True Variants queries - using Variant columns without JSON storage
 -- Query 1: Count by kind

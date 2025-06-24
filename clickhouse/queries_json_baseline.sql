@@ -1,45 +1,5 @@
--- JSON Object baseline queries for performance comparison
--- These use the original JSON Object approach with path expressions
-
--- Q1: Event distribution using JSON path access
-SELECT data.commit.collection::String AS event, count() AS count 
-FROM bluesky_variants_test.bluesky_json_baseline 
-GROUP BY event 
-ORDER BY count DESC;
-
--- Q2: Event + user stats using JSON path access with filtering
-SELECT data.commit.collection::String AS event, count() AS count, uniqExact(data.did::String) AS users 
-FROM bluesky_variants_test.bluesky_json_baseline 
-WHERE data.kind::String = 'commit' AND data.commit.operation::String = 'create' 
-GROUP BY event 
-ORDER BY count DESC;
-
--- Q3: Hourly patterns using JSON timestamp conversion
-SELECT data.commit.collection::String AS event, toHour(fromUnixTimestamp64Micro(data.time_us::UInt64)) as hour_of_day, count() AS count 
-FROM bluesky_variants_test.bluesky_json_baseline 
-WHERE data.kind::String = 'commit' 
-  AND data.commit.operation::String = 'create' 
-  AND data.commit.collection::String in ('app.bsky.feed.post', 'app.bsky.feed.repost', 'app.bsky.feed.like') 
-GROUP BY event, hour_of_day 
-ORDER BY hour_of_day, event;
-
--- Q4: Earliest posters using JSON timestamp conversion
-SELECT data.did::String as user_id, min(fromUnixTimestamp64Micro(data.time_us::UInt64)) as first_post_ts 
-FROM bluesky_variants_test.bluesky_json_baseline 
-WHERE data.kind::String = 'commit' 
-  AND data.commit.operation::String = 'create' 
-  AND data.commit.collection::String = 'app.bsky.feed.post' 
-GROUP BY user_id 
-ORDER BY first_post_ts ASC 
-LIMIT 3;
-
--- Q5: Longest activity spans using JSON timestamp conversion
-SELECT data.did::String as user_id, 
-       date_diff('milliseconds', min(fromUnixTimestamp64Micro(data.time_us::UInt64)), max(fromUnixTimestamp64Micro(data.time_us::UInt64))) AS activity_span 
-FROM bluesky_variants_test.bluesky_json_baseline 
-WHERE data.kind::String = 'commit' 
-  AND data.commit.operation::String = 'create' 
-  AND data.commit.collection::String = 'app.bsky.feed.post' 
-GROUP BY user_id 
-ORDER BY activity_span DESC 
-LIMIT 3; 
+SELECT toString(data.kind) as kind, count() FROM bluesky_1m.bluesky GROUP BY toString(data.kind) ORDER BY count() DESC;
+SELECT toString(data.commit.collection) as collection, count() FROM bluesky_1m.bluesky WHERE toString(data.commit.collection) != '' GROUP BY toString(data.commit.collection) ORDER BY count() DESC LIMIT 10;
+SELECT count() FROM bluesky_1m.bluesky WHERE toString(data.kind) = 'commit';
+SELECT count() FROM bluesky_1m.bluesky WHERE toUInt64(data.time_us) > 1700000000000000;
+SELECT toString(data.commit.operation) as op, toString(data.commit.collection) as coll, count() FROM bluesky_1m.bluesky WHERE toString(data.commit.operation) != '' AND toString(data.commit.collection) != '' GROUP BY toString(data.commit.operation), toString(data.commit.collection) ORDER BY count() DESC LIMIT 5;
