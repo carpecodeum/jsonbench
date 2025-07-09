@@ -1,0 +1,5 @@
+SELECT toString(arrayElement(data.Array, i).kind) as kind, count() FROM bluesky_100m_variant_array.bluesky_array_data ARRAY JOIN arrayEnumerate(data.Array) AS i GROUP BY kind ORDER BY count() DESC;
+SELECT toString(arrayElement(data.Array, i).commit.collection) as collection, count() FROM bluesky_100m_variant_array.bluesky_array_data ARRAY JOIN arrayEnumerate(data.Array) AS i WHERE collection != '' GROUP BY collection ORDER BY count() DESC LIMIT 10;
+SELECT count() FROM bluesky_100m_variant_array.bluesky_array_data ARRAY JOIN arrayEnumerate(data.Array) AS i WHERE toString(arrayElement(data.Array, i).kind) = 'commit';
+SELECT count() FROM bluesky_100m_variant_array.bluesky_array_data ARRAY JOIN arrayEnumerate(data.Array) AS i WHERE toUInt64(arrayElement(data.Array, i).time_us) > 1700000000000000;
+SELECT toString(arrayElement(data.Array, i).commit.operation) as op, toString(arrayElement(data.Array, i).commit.collection) as coll, count() FROM bluesky_100m_variant_array.bluesky_array_data ARRAY JOIN arrayEnumerate(data.Array) AS i WHERE op != '' AND coll != '' GROUP BY op, coll ORDER BY count() DESC LIMIT 5; 
